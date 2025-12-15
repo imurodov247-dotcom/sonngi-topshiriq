@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Food, Buyurtma, BuyurtmaItem
+from django.utils import timezone
+
+from .models import Food, Buyurtma, BuyurtmaItem, Promokod
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -11,11 +13,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ('username', 'password')
 
     def create(self, validated_data):
-        user = User.objects.create_user(
+        return User.objects.create_user(
             username=validated_data['username'],
             password=validated_data['password']
         )
-        return user
 
 
 class FoodSerializer(serializers.ModelSerializer):
@@ -32,13 +33,29 @@ class BuyurtmaItemSerializer(serializers.ModelSerializer):
 
 class BuyurtmaSerializer(serializers.ModelSerializer):
     items = BuyurtmaItemSerializer(many=True)
+    promokod = serializers.SlugRelatedField(
+        slug_field='nomi',
+        queryset=Promokod.objects.all(),
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = Buyurtma
-        fields = ('id', 'manzil', 'status', 'total_price', 'items', 'created_at')
+        fields = (
+            'id',
+            'manzil',
+            'status',
+            'total_price',
+            'promokod',
+            'items',
+            'created_at'
+        )
+        read_only_fields = ('total_price', 'status', 'created_at')
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
+        promokod = validated_data.get('promokod', None)
         user = self.context['request'].user
 
         buyurtma = Buyurtma.objects.create(user=user, **validated_data)
@@ -56,6 +73,17 @@ class BuyurtmaSerializer(serializers.ModelSerializer):
                 count=count,
                 total_price=price
             )
+
+        
+        if promokod:
+            today = timezone.now().date()
+            if promokod.start_date <= today <= promokod.end_date:
+                discount = (total * promokod.amount) // 100
+                total -= discount
+            else:
+                raise serializers.ValidationError(
+                    {"promokod": "Bu promokod amal qilmaydi"}
+                )
 
         buyurtma.total_price = total
         buyurtma.save()

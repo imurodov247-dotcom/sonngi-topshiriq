@@ -9,5 +9,5 @@ router.register('orders', OrderViewSet, basename='orders')
 urlpatterns = [
     path('register/', RegisterView.as_view()),
     path('login/', LoginView.as_view()),
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
 ]
