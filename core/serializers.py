@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from .models import Food, Buyurtma, BuyurtmaItem, Promokod
+from .models import Food, Buyurtma, BuyurtmaItem, Promokod,History
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -24,11 +24,17 @@ class FoodSerializer(serializers.ModelSerializer):
         model = Food
         fields = '__all__'
 
+class PromokodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Promokod
+        fields = '__all__'
 
 class BuyurtmaItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = BuyurtmaItem
         fields = ('food', 'count')
+        
+
 
 
 class BuyurtmaSerializer(serializers.ModelSerializer):
@@ -51,16 +57,15 @@ class BuyurtmaSerializer(serializers.ModelSerializer):
             'items',
             'created_at'
         )
-        read_only_fields = ('total_price', 'status', 'created_at')
+        read_only_fields = ('status', 'total_price', 'created_at')
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         promokod = validated_data.get('promokod', None)
-        user = self.context['request'].user
-
-        buyurtma = Buyurtma.objects.create(user=user, **validated_data)
+        buyurtma = Buyurtma.objects.create(**validated_data)
 
         total = 0
+
         for item in items_data:
             food = item['food']
             count = item['count']
@@ -74,17 +79,28 @@ class BuyurtmaSerializer(serializers.ModelSerializer):
                 total_price=price
             )
 
-        
         if promokod:
             today = timezone.now().date()
             if promokod.start_date <= today <= promokod.end_date:
                 discount = (total * promokod.amount) // 100
                 total -= discount
+                total = max(total, 0) 
             else:
-                raise serializers.ValidationError(
-                    {"promokod": "Bu promokod amal qilmaydi"}
-                )
+                raise serializers.ValidationError({
+                    "promokod": "Bu promokod amal qilmaydi"
+                })
 
         buyurtma.total_price = total
         buyurtma.save()
         return buyurtma
+    
+    
+class HistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = History
+        fields = "__all__"
+        
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["order"] = BuyurtmaSerializer(instance.order).data
+        return data

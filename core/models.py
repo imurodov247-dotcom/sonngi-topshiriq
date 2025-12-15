@@ -71,3 +71,15 @@ class BuyurtmaItem(models.Model):
     def save(self, *args, **kwargs):
         self.total_price = self.food.narxi * self.count
         super().save(*args, **kwargs)
+
+
+
+class History(models.Model):
+    order = models.ForeignKey(Buyurtma,on_delete=models.CASCADE)
+    user = models.ForeignKey(User,on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    
+    def __str__(self):
+        return f"{self.user}"
+    
